@@ -15,9 +15,7 @@ st.set_page_config(
 )
 
 st.title("📦 Pallet Container Layout Optimizer")
-st.write(
-    "เครื่องมือคำนวณการจัดวางพาเลทในตู้คอนเทนเนอร์แบบ Mixed Orientation"
-)
+st.write("เครื่องมือคำนวณการจัดวางพาเลทในตู้คอนเทนเนอร์แบบ Mixed Orientation")
 
 # =========================
 # SIDEBAR INPUTS
@@ -27,13 +25,11 @@ st.sidebar.header("1. ข้อมูลพาเลท (cm)")
 
 p_w = st.sidebar.number_input(
     "ความกว้างพาเลท (Width)",
-    min_value=1.0,
     value=80.0
 )
 
 p_l = st.sidebar.number_input(
     "ความยาวพาเลท (Length)",
-    min_value=1.0,
     value=120.0
 )
 
@@ -56,7 +52,6 @@ c_type = st.sidebar.selectbox(
 c_w_raw = 235.0
 c_l_raw = 590.0 if c_type == "20ft" else 1203.0
 
-# Payload โดยประมาณ
 payload_limit = 28200.0 if c_type == "20ft" else 26700.0
 
 st.sidebar.header("4. ระยะเผื่อความปลอดภัย (Clearance)")
@@ -76,22 +71,13 @@ c_l_gap = st.sidebar.slider(
 )
 
 # =========================
-# CALCULATION LOGIC
+# CALCULATION
 # =========================
 
-def solve_layout(
-    pw,
-    pl,
-    cw_raw,
-    cl_raw,
-    cw_clear,
-    cl_clear
-):
+def solve_layout(pw, pl, cw_raw, cl_raw, cw_clear, cl_clear):
 
     cw = cw_raw - cw_clear
     cl = cl_raw - cl_clear
-
-    # OPTION 1
 
     o1 = (cw // pw) * (cl // pl)
     o2 = (cw // pl) * (cl // pw)
@@ -117,8 +103,6 @@ def solve_layout(
             "m_rows": 0,
             "total": int(o2)
         }
-
-    # OPTION 2
 
     best_mixed = {"total": 0}
 
@@ -158,34 +142,12 @@ simple_res, mixed_res = solve_layout(
 )
 
 # =========================
-# EXTRA CALCULATIONS
+# NEW CALCULATIONS
 # =========================
 
 usable_area = (
     (c_w_raw - c_w_gap)
     * (c_l_raw - c_l_gap)
-)
-
-simple_area = (
-    simple_res["total"]
-    * p_w
-    * p_l
-)
-
-mixed_area = (
-    mixed_res["total"]
-    * p_w
-    * p_l
-)
-
-simple_util = (
-    simple_area / usable_area * 100
-    if usable_area > 0 else 0
-)
-
-mixed_util = (
-    mixed_area / usable_area * 100
-    if usable_area > 0 else 0
 )
 
 simple_weight = (
@@ -198,17 +160,25 @@ mixed_weight = (
     * weight_per_pallet
 )
 
+simple_util = (
+    (simple_res["total"] * p_w * p_l)
+    / usable_area
+    * 100
+)
+
+mixed_util = (
+    (mixed_res["total"] * p_w * p_l)
+    / usable_area
+    * 100
+)
+
 # =========================
-# DRAWING FUNCTION
+# ORIGINAL DRAW FUNCTION
 # =========================
 
 def draw_plot(res, title):
 
-    fig, ax = plt.subplots(
-        figsize=(10, 5)
-    )
-
-    # Container Boundary
+    fig, ax = plt.subplots(figsize=(10, 5))
 
     ax.add_patch(
         patches.Rectangle(
@@ -216,34 +186,30 @@ def draw_plot(res, title):
             c_l_raw,
             c_w_raw,
             linewidth=3,
-            edgecolor="black",
-            facecolor="white"
+            edgecolor='black',
+            facecolor='white'
         )
     )
-
-    # Usable Area
 
     usable_l = c_l_raw - c_l_gap
     usable_w = c_w_raw - c_w_gap
 
     ax.add_patch(
         patches.Rectangle(
-            (
-                c_l_gap / 2,
-                c_w_gap / 2
-            ),
+            (c_l_gap / 2, c_w_gap / 2),
             usable_l,
             usable_w,
             linewidth=1,
-            edgecolor="gray",
-            facecolor="#f8fafc",
-            linestyle="--"
+            edgecolor='gray',
+            facecolor='#f8fafc',
+            linestyle='--'
         )
     )
 
     used_w = (
         res["n_rows"] * res["n_type_w"]
-        + res.get("m_rows", 0)
+    ) + (
+        res.get("m_rows", 0)
         * res.get("m_type_w", 0)
     )
 
@@ -251,68 +217,52 @@ def draw_plot(res, title):
         c_w_raw - used_w
     ) / 2
 
-    def draw_group(
-        rows,
-        per_row,
-        pallet_w,
-        pallet_l,
-        start_y
-    ):
+    def draw_g(n, n_p, pw, pl, sy):
 
-        y = start_y
+        y = sy
 
-        for i in range(rows):
+        for i in range(n):
 
             off_x = (
-                c_l_raw
-                - (per_row * pallet_l)
+                c_l_raw - (n_p * pl)
             ) / 2
 
-            for j in range(per_row):
-
-                x = (
-                    off_x
-                    + (j * pallet_l)
-                )
+            for j in range(n_p):
 
                 ax.add_patch(
                     patches.Rectangle(
-                        (x, y),
-                        pallet_l,
-                        pallet_w,
-                        edgecolor="#0369a1",
-                        facecolor="#bae6fd"
+                        (off_x + j * pl, y),
+                        pl,
+                        pw,
+                        edgecolor='#0369a1',
+                        facecolor='#bae6fd'
                     )
                 )
 
-                # Length Label
-
                 ax.text(
-                    x + pallet_l / 2,
+                    off_x + j * pl + pl / 2,
                     y + 2,
-                    f"{int(pallet_l)}",
-                    ha="center",
-                    va="bottom",
+                    f"{pl}",
+                    ha='center',
+                    va='bottom',
                     fontsize=6
                 )
 
-                # Width Label
-
                 ax.text(
-                    x + 2,
-                    y + pallet_w / 2,
-                    f"{int(pallet_w)}",
-                    ha="left",
-                    va="center",
+                    off_x + j * pl + 2,
+                    y + pw / 2,
+                    f"{pw}",
+                    ha='left',
+                    va='center',
                     rotation=90,
                     fontsize=6
                 )
 
-            y += pallet_w
+            y += pw
 
         return y
 
-    next_y = draw_group(
+    ny = draw_g(
         res["n_rows"],
         res["n_per_row"],
         res["n_type_w"],
@@ -322,18 +272,16 @@ def draw_plot(res, title):
 
     if res.get("m_rows", 0) > 0:
 
-        draw_group(
+        draw_g(
             res["m_rows"],
             res["m_per_row"],
             res["m_type_w"],
             res["m_type_l"],
-            next_y
+            ny
         )
 
-    ax.set_aspect("equal")
-    ax.set_title(
-        f"{title}: {res['total']} UNITS"
-    )
+    ax.set_aspect('equal')
+    ax.set_title(f"{title}: {res['total']} UNITS")
 
     return fig
 
@@ -345,29 +293,20 @@ col1, col2 = st.columns(2)
 
 with col1:
 
-    st.subheader(
-        "OPTION 1 : SIMPLE GRID"
-    )
-
-    st.metric(
-        "Pallet Qty",
-        simple_res["total"]
-    )
-
     fig1 = draw_plot(
         simple_res,
-        "OPTION 1"
+        "OPTION 1: SIMPLE GRID"
     )
 
     st.pyplot(fig1)
     plt.close(fig1)
 
     st.write(
-        f"**Total Weight :** {simple_weight:,.0f} kg"
+        f"**Total Weight:** {simple_weight:,.0f} kg"
     )
 
     st.write(
-        f"**Utilization :** {simple_util:.1f}%"
+        f"**Utilization:** {simple_util:.1f}%"
     )
 
     if simple_weight > payload_limit:
@@ -384,29 +323,20 @@ with col1:
 
 with col2:
 
-    st.subheader(
-        "OPTION 2 : MIXED ORIENTATION"
-    )
-
-    st.metric(
-        "Pallet Qty",
-        mixed_res["total"]
-    )
-
     fig2 = draw_plot(
         mixed_res,
-        "OPTION 2"
+        "OPTION 2: MIXED ORIENTATION"
     )
 
     st.pyplot(fig2)
     plt.close(fig2)
 
     st.write(
-        f"**Total Weight :** {mixed_weight:,.0f} kg"
+        f"**Total Weight:** {mixed_weight:,.0f} kg"
     )
 
     st.write(
-        f"**Utilization :** {mixed_util:.1f}%"
+        f"**Utilization:** {mixed_util:.1f}%"
     )
 
     if mixed_weight > payload_limit:
@@ -418,7 +348,7 @@ with col2:
     else:
 
         st.success(
-            f"✅ Payload OK ({payload_limit:,.0f} kg)"
+            f"✅ Payload OK ({payload_limit:,.0f} kg"
         )
 
 # =========================
@@ -430,12 +360,11 @@ st.divider()
 if mixed_res["total"] > simple_res["total"]:
 
     st.success(
-        f"🔥 แนะนำ OPTION 2 : เพิ่มได้อีก "
+        f"🔥 แนะนำ Option 2 : สามารถเพิ่มจำนวนได้อีก "
         f"{mixed_res['total'] - simple_res['total']} ใบ"
     )
-
 else:
 
     st.info(
-        "💡 ทั้งสอง OPTION ให้จำนวนพาเลทเท่ากัน"
+        "💡 ทั้งสอง Option ให้จำนวนพาเลทเท่ากัน"
     )
